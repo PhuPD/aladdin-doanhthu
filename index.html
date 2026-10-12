@@ -213,6 +213,7 @@ function fmtS(v){var a=Math.abs(v),s=v<0?'−':'';
   if(a>=1e9)return s+(a/1e9).toLocaleString('vi-VN',{maximumFractionDigits:a>=1e11?1:2})+' tỷ';
   if(a>=1e6)return s+(a/1e6).toLocaleString('vi-VN',{maximumFractionDigits:a>=1e8?0:1})+' tr';
   if(a>=1e3)return s+Math.round(a/1e3).toLocaleString('vi-VN')+'k';return s+Math.round(a)}
+function fmtTy(v){var t=v/1e9,dp=t>=10?1:2;return t.toLocaleString('vi-VN',{maximumFractionDigits:dp})+' tỷ'}
 function pct(v,d){if(v==null||!isFinite(v))return '–';return (v*100).toLocaleString('vi-VN',{minimumFractionDigits:d==null?1:d,maximumFractionDigits:d==null?1:d})+'%'}
 function stOf(p){if(p==null||!isFinite(p))return 'na';return p>=1?'good':p>=.9?'near':p>=.8?'slow':'bad'}
 function el(tag,attrs,kids){var e=document.createElement(tag);if(attrs)for(var k in attrs){if(k==='text')e.textContent=attrs[k];else if(k==='html')e.innerHTML=attrs[k];else if(k.slice(0,2)==='on')e.addEventListener(k.slice(2),attrs[k]);else if(attrs[k]!=null)e.setAttribute(k,attrs[k])}
@@ -349,8 +350,12 @@ function monthChart(host,items,color){
     if(d.forecast&&d.forecast>d.actual){svg.appendChild(S('path',{d:topRound(x0,y(d.forecast),w,y(d.actual)-y(d.forecast),4),fill:'none',stroke:color,'stroke-width':1.5,'stroke-dasharray':'3 3'}))}
     svg.appendChild(S('path',{d:topRound(x0,y(d.actual),w,y(0)-y(d.actual),4),fill:color,opacity:d.current?.85:1}));
     if(d.target>0){svg.appendChild(S('line',{x1:x0-8,x2:x0+w+8,y1:y(d.target),y2:y(d.target),stroke:'#0f1729','stroke-width':2,'stroke-linecap':'round'}))}
-    var p=d.target>0?(d.current?d.fcPct:d.actual/d.target):null,lab=S('text',{x:cx,y:Math.min(y(d.actual),y(d.target||0),d.forecast?y(d.forecast):1e9)-8,'text-anchor':'middle',class:'vl'});
-    lab.textContent=p!=null?(d.current?'DB ':'')+pct(p,0):fmtS(d.actual);svg.appendChild(lab);
+    // nhãn đầu cột = doanh thu (tỷ); tháng đang chạy đặt ngay trên cột lũy kế (nằm trong khung dự báo)
+    var inside=y(0)-y(d.actual)>26,ly=inside?y(d.actual)+17:y(d.actual)-8;
+    if(d.target>0){var ty=y(d.target);
+      if(inside){if(ty>ly-15&&ty<ly+6){if(ty+19<y(0)-4)ly=ty+19;else{inside=false;ly=Math.min(y(d.actual),ty)-8}}}
+      else if(ty>ly-14&&ty<y(d.actual)+6)ly=ty-8}
+    var lab=S('text',{x:cx,y:ly,'text-anchor':'middle',class:'vl',style:inside?'fill:#fff':''});lab.textContent=fmtTy(d.actual);svg.appendChild(lab);
     var ml=S('text',{x:cx,y:H-14,'text-anchor':'middle'});ml.textContent=d.label;svg.appendChild(ml);
     if(d.current){var cl=S('text',{x:cx,y:H-2,'text-anchor':'middle'});cl.textContent='đang chạy';svg.appendChild(cl)}
     var hit=S('rect',{x:pl+i*bw,y:pt,width:bw,height:ih,fill:'transparent'});svg.appendChild(hit);
@@ -427,7 +432,7 @@ function chartsRow(m,mt,series,color,trendFn,id){
     left=chartCard('Lũy kế so với mục tiêu',monthLabel(m.key)+' · đường chấm = dự báo đến cuối tháng',[lgRect(color,'Lũy kế thực tế'),lgLine('#0f1729','Mục tiêu lũy kế (tuyến tính)',1)],function(h){cumChart(h,m,{daily:mt.daily,dd:mt.dd,target:mt.target,forecast:mt.done?null:mt.forecast,color:color})},toggle);
   }
   var items=trendItems(trendFn);
-  var right=chartCard('Xu hướng theo tháng','Cột = doanh thu, vạch đen = mục tiêu, % = đạt MT · DB = dự báo tháng đang chạy',[lgRect(color,'Doanh thu'),lgLine('#0f1729','Mục tiêu')],function(h){monthChart(h,items,color)});
+  var right=chartCard('Xu hướng theo tháng','Số trên cột là doanh thu · vạch đen = mục tiêu · khung chấm = dự báo tháng đang chạy · rê/chạm cột để xem % đạt',[lgRect(color,'Doanh thu'),lgLine('#0f1729','Mục tiêu')],function(h){monthChart(h,items,color)});
   return el('div',{class:'grid charts'},[left,right]);
 }
 
