@@ -37,10 +37,12 @@ a{color:inherit}
 .logo i{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#2a78d6,#1baf7a);display:grid;place-items:center;color:#fff;font-style:normal;font-size:15px}
 .logo small{display:block;font-weight:500;color:var(--muted);font-size:12px;letter-spacing:0}
 .spacer{flex:1}
-.months{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
-.months button{border:0;background:transparent;padding:6px 12px;border-radius:7px;cursor:pointer;font-weight:600;color:var(--ink2);font-size:13px}
-.months button[aria-pressed="true"]{background:var(--ink);color:#fff}
-.months button:hover:not([aria-pressed="true"]){background:var(--hover)}
+.msel{position:relative;display:inline-flex;align-items:center}
+.msel select{appearance:none;-webkit-appearance:none;font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:8px 36px 8px 34px;cursor:pointer;min-width:168px}
+.msel select:hover{border-color:var(--ink2)}
+.msel select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.msel .ic{position:absolute;left:11px;pointer-events:none;color:var(--ink2)}
+.msel .cv{position:absolute;right:12px;pointer-events:none;color:var(--ink2)}
 .fresh{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--s-good);flex:none}
 .fresh.live .dot{background:#eda100;animation:pulse 1.6s infinite}
@@ -187,7 +189,7 @@ tbody tr:last-child td{border-bottom:0}
   <div class="wrap">
     <div class="logo" id="home" role="link" tabindex="0"><i>A</i><div>Doanh thu thuần Aladdin MB<small>Tiến độ theo mục tiêu tháng</small></div></div>
     <div class="spacer"></div>
-    <div class="months" id="months" role="group" aria-label="Chọn tháng"></div>
+    <label class="msel"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><select id="months" aria-label="Chọn tháng"></select><svg class="cv" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></label>
     <div class="fresh" id="fresh"><span class="dot"></span><span id="freshTxt">Đang tải…</span></div>
   </div>
 </header>
@@ -249,7 +251,7 @@ function lastDayMissing(b,s){var i=b.dataDays-1;return i>=0&&s.target>0&&!(s.dai
 function readHash(){var p=new URLSearchParams(location.hash.slice(1));var ks=monthKeys();
   state.m=ks.indexOf(p.get('m'))>=0?p.get('m'):defaultMonth();state.b=p.get('b')||null;state.s=p.get('s')||null;
   var m=curMonth();if(state.b&&!findBrand(m,state.b)){state.b=null;state.s=null}if(state.s&&!findStore(findBrand(m,state.b),state.s))state.s=null}
-function defaultMonth(){var n=hnNow(),k=n.y+'-'+String(n.mo).padStart(2,'0'),ks=monthKeys();if(ks.indexOf(k)>=0)return k;return ks[ks.length-1]}
+function defaultMonth(){var ks=monthKeys();return ks[ks.length-1]}
 function go(m,b,s){var p=new URLSearchParams();p.set('m',m);if(b)p.set('b',b);if(s)p.set('s',s);var h='#'+p.toString();if(location.hash!==h)location.hash=h;else render()}
 
 /* ---------- tooltip ---------- */
@@ -398,7 +400,7 @@ function chartCard(title,cap,legend,draw,extra){var host=el('div',{class:'chart'
 function lgRect(c,l){return el('span',null,[el('i',{class:'sw',style:'background:'+c}),l])}
 function lgLine(c,l,dash){return el('span',null,[el('i',{class:dash?'lk-dash':'lk-line',style:'border-color:'+c}),l])}
 
-function trendItems(fn){return monthKeys().map(function(k){var m=DATA.months[k],r=fn(m);if(!r)return null;
+function trendItems(fn){return monthKeys().slice(-12).map(function(k){var m=DATA.months[k],r=fn(m);if(!r)return null;
   return {label:'T'+Number(k.split('-')[1]),full:monthLabel(k),actual:r.actual,target:r.target,forecast:r.done?null:r.forecast,fcPct:r.fcPct,current:!r.done}}).filter(Boolean)}
 
 function chartsRow(m,mt,series,color,trendFn,id){
@@ -475,7 +477,8 @@ var drawers=[];
 function render(){
   if(!DATA)return;readHash();drawers=[];hideTip();
   var m=curMonth(),ks=monthKeys(),months=document.getElementById('months');months.innerHTML='';
-  ks.forEach(function(k){months.appendChild(el('button',{'aria-pressed':String(k===state.m),text:'T'+Number(k.split('-')[1])+'/'+k.slice(2,4),onclick:function(){go(k,state.b,state.s)}}))});
+  ks.slice().reverse().forEach(function(k,i){var o=el('option',{value:k,text:monthLabel(k)+(i===0?' · mới nhất':'')});if(k===state.m)o.selected=true;months.appendChild(o)});
+  months.onchange=function(){go(months.value,state.b,state.s)};
   var b=findBrand(m,state.b),s=findStore(b,state.s),out=el('div');
   var crumbs=el('nav',{class:'crumbs','aria-label':'Điều hướng'});
   crumbs.appendChild(b?el('a',{onclick:function(){go(state.m)},text:'Toàn hệ thống Aladdin MB'}):el('b',{text:'Toàn hệ thống Aladdin MB'}));
