@@ -45,6 +45,16 @@ a{color:inherit}
 .msel .cv{position:absolute;right:12px;pointer-events:none;color:var(--ink2)}
 .fresh{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--s-good);flex:none}
+.refresh{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:10px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+.refresh:hover{background:#25304a}
+.refresh:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.refresh[disabled]{cursor:progress;opacity:.85}
+.refresh svg{flex:none}
+.refresh.busy svg{animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fresh.ok .dot{background:var(--accent)}
+.fresh.err{border-color:#f3c4c4;color:var(--s-bad-ink);background:#fff7f7}
+.fresh.err .dot{background:var(--s-bad)}
 .fresh.live .dot{background:#eda100;animation:pulse 1.6s infinite}
 @keyframes pulse{50%{opacity:.35}}
 
@@ -179,6 +189,7 @@ tbody tr:last-child td{border-bottom:0}
   .filters input{width:100%}
   .kpi .val{font-size:19px}
   .fresh{order:3;width:100%;justify-content:center}
+  .msel{flex:1}.msel select{width:100%;min-width:0}
   td,th{padding:9px 8px}
   .mbar{width:54px}
 }
@@ -191,6 +202,7 @@ tbody tr:last-child td{border-bottom:0}
     <div class="spacer"></div>
     <label class="msel"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><select id="months" aria-label="Chọn tháng"></select><svg class="cv" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></label>
     <div class="fresh" id="fresh"><span class="dot"></span><span id="freshTxt">Đang tải…</span></div>
+    <button class="refresh" id="refresh" type="button" title="Lấy số mới nhất trực tiếp từ Google Sheet"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span id="refreshTxt">Làm mới</span></button>
   </div>
 </header>
 <main class="wrap" id="app"><div class="loading">Đang tải số liệu…</div></main>
@@ -200,6 +212,8 @@ tbody tr:last-child td{border-bottom:0}
 (function(){
 'use strict';
 var GIST='c5bf6bbebdb01e8c736df8a28dbe4192', USER='PhuPD';
+// Apps Script (project KEY, file DoanhThu.gs): đọc trực tiếp Google Sheet khi bấm "Làm mới"
+var LIVE_URL='https://script.google.com/macros/s/AKfycbyLxsOLIvMFXEb8gDjYyDSK1_QJB4qL2TU_rcNJvF7BXIAl_9rQPr8z2HAMO-0ny2dR/exec?dt=1';
 var SHEET_URL='https://docs.google.com/spreadsheets/d/12k0Bh1W_bPonOuanK88f-hARW8PV2pygjPcfdVSAwvw/edit';
 var BRAND_COLOR={LW:'#2a78d6',TL:'#eb6834',BTQM:'#1baf7a',GM:'#eda100',CV:'#e87ba4'};
 var ST={good:{c:'#0ca30c',l:'Vượt nhịp'},near:{c:'#2a78d6',l:'Sát nhịp'},slow:{c:'#eda100',l:'Chậm'},bad:{c:'#d03b3b',l:'Báo động'},na:{c:'#b8bfcc',l:'Chưa có MT'}};
@@ -495,7 +509,7 @@ var drawers=[];
 function render(){
   if(!DATA)return;readHash();drawers=[];hideTip();
   var m=curMonth(),ks=monthKeys(),months=document.getElementById('months');months.innerHTML='';
-  ks.slice().reverse().forEach(function(k,i){var o=el('option',{value:k,text:monthLabel(k)+(i===0?' · mới nhất':'')});if(k===state.m)o.selected=true;months.appendChild(o)});
+  ks.slice().reverse().forEach(function(k,i){var o=el('option',{value:k,text:monthLabel(k)+(i===0&&innerWidth>=640?' · mới nhất':'')});if(k===state.m)o.selected=true;months.appendChild(o)});
   months.onchange=function(){go(months.value,state.b,state.s)};
   var b=findBrand(m,state.b),s=findStore(b,state.s),out=el('div');
   var crumbs=el('nav',{class:'crumbs','aria-label':'Điều hướng'});
@@ -542,6 +556,8 @@ function render(){
 /* ---------- data ---------- */
 function setFresh(){var f=document.getElementById('fresh'),t=document.getElementById('freshTxt');if(!DATA)return;var live=inEntryWindow();f.classList.toggle('live',live);
   var chk=new Date(STATUS&&STATUS.checkedAt||DATA.generatedAt),chg=new Date(DATA.generatedAt);
+  f.classList.remove('err');f.classList.toggle('ok',!!DATA.live&&!live);
+  if(DATA.live){t.textContent='Lấy trực tiếp từ sheet lúc '+hm(chg)+(sameDay(chg)?'':' '+dm(chg));f.title='Số vừa đọc thẳng từ Google Sheet bằng nút Làm mới';return}
   t.textContent=(live?'Đang nhập số hôm nay':'Số đã chốt')+' · kiểm tra '+hm(chk)+(sameDay(chk)?'':' '+dm(chk));
   f.title='Số liệu thay đổi lần cuối: '+hm(chg)+' '+dm(chg)+' · máy kiểm tra sheet lần cuối: '+hm(chk)+' '+dm(chk)}
 function hnParts(d){var f=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d),g=function(t){return f.find(function(x){return x.type===t}).value};return {d:g('day'),m:g('month'),h:g('hour'),mi:g('minute')}}
@@ -556,7 +572,10 @@ function load(){
       var f=g.files['data.json'];if(f.truncated)return fetchJSON(f.raw_url);return JSON.parse(f.content)})
     .catch(function(){fetchJSON('https://gist.githubusercontent.com/'+USER+'/'+GIST+'/raw/status.json?t='+Date.now()).then(function(x){STATUS=x;setFresh()}).catch(function(){});
       return fetchJSON('https://gist.githubusercontent.com/'+USER+'/'+GIST+'/raw/data.json?t='+Date.now())})
-    .then(function(d){var changed=!DATA||d.generatedAt!==DATA.generatedAt;DATA=d;setFresh();if(changed)render();else app.classList.remove('fade')})
+    .then(function(d){
+      // đã bấm Làm mới (số lấy thẳng từ sheet) -> chỉ nhận bản gist khi nó mới hơn
+      if(DATA&&DATA.live&&new Date(d.generatedAt)<=new Date(DATA.generatedAt)){app.classList.remove('fade');return}
+      var changed=!DATA||d.generatedAt!==DATA.generatedAt;DATA=d;setFresh();if(changed)render();else app.classList.remove('fade')})
     .catch(function(e){app.classList.remove('fade');if(!DATA)app.innerHTML='<div class="loading">Không tải được số liệu ('+String(e.message||e)+'). Thử tải lại trang.</div>'});
 }
 function schedule(){setTimeout(function(){if(document.visibilityState==='visible')load();schedule()},inEntryWindow()?3*60e3:30*60e3)}
@@ -564,6 +583,15 @@ window.addEventListener('hashchange',function(){render();window.scrollTo({top:0}
 var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(function(){drawers.forEach(function(f){f()})},150)});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&DATA&&Date.now()-new Date(DATA.generatedAt).getTime()>3*60e3&&inEntryWindow())load()});
 var home=document.getElementById('home');home.addEventListener('click',function(){go(state.m||defaultMonth())});home.addEventListener('keydown',function(e){if(e.key==='Enter')go(state.m||defaultMonth())});
+var rbtn=document.getElementById('refresh'),rtxt=document.getElementById('refreshTxt');
+function manualRefresh(){if(rbtn.disabled)return;rbtn.disabled=true;rbtn.classList.add('busy');rtxt.textContent='Đang lấy…';
+  var f=document.getElementById('fresh'),t=document.getElementById('freshTxt');f.classList.remove('err');t.textContent='Đang đọc Google Sheet…';if(DATA)app.classList.add('fade');
+  var ctl=window.AbortController?new AbortController():null,timer=setTimeout(function(){if(ctl)ctl.abort()},90e3);
+  fetch(LIVE_URL+'&t='+Date.now(),{cache:'no-store',signal:ctl?ctl.signal:undefined}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})
+    .then(function(d){if(!d||d.error||!d.months)throw new Error(d&&d.error||'dữ liệu rỗng');DATA=d;setFresh();render()})
+    .catch(function(e){app.classList.remove('fade');f.classList.add('err');t.textContent='Chưa lấy được số mới ('+(e.name==='AbortError'?'quá 90 giây':String(e.message||e).slice(0,60))+'), bấm thử lại';})
+    .then(function(){clearTimeout(timer);rbtn.disabled=false;rbtn.classList.remove('busy');rtxt.textContent='Làm mới'})}
+rbtn.addEventListener('click',manualRefresh);
 load();schedule();setInterval(setFresh,60e3);
 })();
 </script>
